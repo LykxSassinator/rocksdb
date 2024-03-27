@@ -500,7 +500,16 @@ bool CompactionPicker::SetupOtherInputs(
   // user key, while excluding other entries for the same user key. This
   // can happen when one user key spans multiple files.
   if (!output_level_inputs->empty()) {
-    const uint64_t limit = mutable_cf_options.max_compaction_bytes;
+    // It helps to reduce write amp and avoid a further separate compaction
+    // to include more input level files without expanding output level files.
+    // So we apply a softer limit when the strict max_compaction_bytes limit is
+    // configured to be ignored. We still need a limit to avoid overly large
+    // compactions and potential high space amp spikes.
+    const uint64_t limit =
+        mutable_cf_options.ignore_max_compaction_bytes_for_input
+            ? MultiplyCheckOverflow(mutable_cf_options.max_compaction_bytes,
+                                    2.0)
+            : mutable_cf_options.max_compaction_bytes;
     const uint64_t output_level_inputs_size =
         TotalFileSize(output_level_inputs->files);
     const uint64_t inputs_size = TotalFileSize(inputs->files);
@@ -527,9 +536,8 @@ bool CompactionPicker::SetupOtherInputs(
       try_overlapping_inputs = false;
     }
     if (try_overlapping_inputs && expanded_inputs.size() > inputs->size() &&
-        (mutable_cf_options.ignore_max_compaction_bytes_for_input ||
-         output_level_inputs_size + expanded_inputs_size < limit) &&
-        !AreFilesInCompaction(expanded_inputs.files)) {
+        !AreFilesInCompaction(expanded_inputs.files) &&
+        output_level_inputs_size + expanded_inputs_size < limit) {
       InternalKey new_start, new_limit;
       GetRange(expanded_inputs, &new_start, &new_limit);
       CompactionInputFiles expanded_output_level_inputs;
@@ -551,9 +559,8 @@ bool CompactionPicker::SetupOtherInputs(
                                              base_index, nullptr);
       expanded_inputs_size = TotalFileSize(expanded_inputs.files);
       if (expanded_inputs.size() > inputs->size() &&
-          (mutable_cf_options.ignore_max_compaction_bytes_for_input ||
-           output_level_inputs_size + expanded_inputs_size < limit) &&
-          !AreFilesInCompaction(expanded_inputs.files)) {
+          !AreFilesInCompaction(expanded_inputs.files) &&
+          (output_level_inputs_size + expanded_inputs_size) < limit) {
         expand_inputs = true;
       }
     }
