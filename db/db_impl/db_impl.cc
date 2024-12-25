@@ -5843,9 +5843,8 @@ Status DBImpl::IngestExternalFiles(
     InstrumentedMutexLock l(&mutex_);
     TEST_SYNC_POINT("DBImpl::AddFile:MutexLock");
 
-    // Stop writes to the DB by entering both write threads
-    WriteThread::Writer w;
-    write_thread_.EnterUnbatched(&w, &mutex_);
+    // DO NOT pause foreground-write if possible.
+    // Stop writes to the DB in 2PC.
     WriteThread::Writer nonmem_w;
     if (two_write_queues_) {
       nonmem_write_thread_.EnterUnbatched(&nonmem_w, &mutex_);
@@ -5856,7 +5855,7 @@ Status DBImpl::IngestExternalFiles(
     // key landing in memtable, the ingestion job may skip the necessary
     // memtable flush.
     // So wait here to ensure there is no pending write to memtable.
-    WaitForPendingWrites();
+    if (immutable_db_options_.unordered_write) WaitForPendingWrites();
 
     num_running_ingest_file_ += static_cast<int>(num_cfs);
     TEST_SYNC_POINT("DBImpl::IngestExternalFile:AfterIncIngestFileCounter");
@@ -5901,9 +5900,10 @@ Status DBImpl::IngestExternalFiles(
             auto* cfd =
                 static_cast<ColumnFamilyHandleImpl*>(args[i].column_family)
                     ->cfd();
+            // DO NOT pause foreground-write.
             status = FlushMemTable(cfd, flush_opts,
                                    FlushReason::kExternalFileIngestion,
-                                   true /* entered_write_thread */);
+                                   false /* entered_write_thread */);
             mutex_.Lock();
             if (!status.ok()) {
               break;
@@ -6012,7 +6012,6 @@ Status DBImpl::IngestExternalFiles(
     if (two_write_queues_) {
       nonmem_write_thread_.ExitUnbatched(&nonmem_w);
     }
-    write_thread_.ExitUnbatched(&w);
 
     if (status.ok()) {
       for (auto& job : ingestion_jobs) {
