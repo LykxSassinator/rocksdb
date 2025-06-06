@@ -4867,7 +4867,6 @@ Status DBImpl::IngestExternalFiles(
         mutex_.Unlock();
         status = AtomicFlushMemTables(cfds_to_flush, flush_opts,
                                       FlushReason::kExternalFileIngestion,
-                                      {} /* provided_candidate_cfds */,
                                       !allow_write /* entered_write_thread */);
         mutex_.Lock();
       } else {
