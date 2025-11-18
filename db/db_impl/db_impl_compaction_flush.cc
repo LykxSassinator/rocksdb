@@ -1234,7 +1234,14 @@ Status DBImpl::CompactRangeInternal(const CompactRangeOptions& options,
             check_overlap_within_file = false;
           }
         }
-        if (!check_overlap_within_file) {
+        // `check_range_overlap_on_bottom_level` set to true means we check SST
+        // range overlap instead of real kv overlap to ensure that Manual
+        // Compact can be trigger on the overlapped SST files, so the SST files
+        // with big range can be split by the CompactionPartitioner.
+        if (!check_overlap_within_file ||
+            (!overlap && options.check_range_overlap_on_bottom_level &&
+             level ==
+                 current_version->storage_info()->num_non_empty_levels() - 1)) {
           overlap = current_version->storage_info()->OverlapInLevel(level,
                                                                     begin, end);
         }
