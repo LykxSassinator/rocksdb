@@ -534,6 +534,8 @@ bool CompactionPicker::SetupOtherInputs(
     uint64_t expanded_inputs_size = TotalFileSize(expanded_inputs.files);
     if (!ExpandInputsToCleanCut(cf_name, vstorage, &expanded_inputs)) {
       try_overlapping_inputs = false;
+    } else {
+      expanded_inputs_size = TotalFileSize(expanded_inputs.files);
     }
     if (try_overlapping_inputs && expanded_inputs.size() > inputs->size() &&
         !AreFilesInCompaction(expanded_inputs.files) &&
