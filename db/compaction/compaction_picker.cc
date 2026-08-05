@@ -535,6 +535,8 @@ bool CompactionPicker::SetupOtherInputs(
     if (!ExpandInputsToCleanCut(cf_name, vstorage, &expanded_inputs)) {
       try_overlapping_inputs = false;
     } else {
+      // Clean-cut expansion may add boundary files, so use the final size when
+      // enforcing the compaction byte limit below.
       expanded_inputs_size = TotalFileSize(expanded_inputs.files);
     }
     if (try_overlapping_inputs && expanded_inputs.size() > inputs->size() &&
