@@ -132,7 +132,7 @@ class ExternalSstFileIngestionJob {
 
   // Will execute the ingestion job and prepare edit() to be applied.
   // REQUIRES: Mutex held
-  Status Run();
+  Status Run(SequenceNumber last_seqno);
 
   // Register key range involved in this ingestion job
   // to prevent key range conflict with other ongoing compaction/file ingestion
